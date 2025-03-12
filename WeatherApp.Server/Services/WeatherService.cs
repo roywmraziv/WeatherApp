@@ -1,32 +1,38 @@
 using Microsoft.AspNetCore.Mvc;
+using System.Text.Json;
+using WeatherApp.Server.Models;
 
 namespace WeatherApp.Server.Controllers;
 
-[ApiController]
-[Route("[controller]")]
-public class WeatherForecastController : ControllerBase
+
+public class WeatherService
 {
-    private static readonly string[] Summaries = new[]
-    {
-        "Freezing", "Bracing", "Chilly", "Cool", "Mild", "Warm", "Balmy", "Hot", "Sweltering", "Scorching"
-    };
+    private readonly HttpClient _client;
+    private readonly string _apiKey;
 
-    private readonly ILogger<WeatherForecastController> _logger;
-
-    public WeatherForecastController(ILogger<WeatherForecastController> logger)
+    public WeatherService(HttpClient client, string apiKey)
     {
-        _logger = logger;
+        _client = client ?? throw new ArgumentNullException(nameof(client));
+        _apiKey = apiKey ?? throw new ArgumentNullException(nameof(apiKey));
+        _client.BaseAddress = new Uri("https://api.openweathermap.org/data/2.5/");
     }
 
-    [HttpGet(Name = "GetWeatherForecast")]
-    public IEnumerable<WeatherForecast> Get()
+    public async Task<WeatherData> GetWeatherAsync(string city)
     {
-        return Enumerable.Range(1, 5).Select(index => new WeatherForecast
+        string url = $"weather?q={city}&appid={_apiKey}";
+
+        try
         {
-            Date = DateOnly.FromDateTime(DateTime.Now.AddDays(index)),
-            TemperatureC = Random.Shared.Next(-20, 55),
-            Summary = Summaries[Random.Shared.Next(Summaries.Length)]
-        })
-        .ToArray();
+            string response = await _client.GetStringAsync(url);
+            return JsonSerializer.Deserialize<WeatherData>(response, new JsonSerializerOptions
+            {
+                PropertyNameCaseInsensitive = true
+            });
+        }
+        catch(HttpRequestException ex)
+        {
+            throw new Exception($"Failed to fetch weather for {city}: {ex.Message}");
+        }
     }
+
 }
